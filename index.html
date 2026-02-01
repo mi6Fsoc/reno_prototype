@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reno | AI Renovation Planner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      /* Mapping the OKLCH values provided in prompt to standard CSS vars that Tailwind can use 
+         Note: Tailwind CDN creates colors from these if defined in config. 
+         Since strict OKLCH isn't fully supported in all tailwind CDN versions without plugins, 
+         we will use the CSS variables directly in the config.
+      */
+       :root {
+          --background: oklch(1.0000 0 0);
+          --foreground: oklch(0.2101 0.0318 264.6645);
+          --card: oklch(1.0000 0 0);
+          --card-foreground: oklch(0.2101 0.0318 264.6645);
+          --popover: oklch(1.0000 0 0);
+          --popover-foreground: oklch(0.2101 0.0318 264.6645);
+          --primary: oklch(0.6716 0.1368 48.5130);
+          --primary-foreground: oklch(1.0000 0 0);
+          --secondary: oklch(0.5360 0.0398 196.0280);
+          --secondary-foreground: oklch(1.0000 0 0);
+          --muted: oklch(0.9670 0.0029 264.5419);
+          --muted-foreground: oklch(0.5510 0.0234 264.3637);
+          --accent: oklch(0.9491 0 0);
+          --accent-foreground: oklch(0.2101 0.0318 264.6645);
+          --destructive: oklch(0.6368 0.2078 25.3313);
+          --destructive-foreground: oklch(0.9851 0 0);
+          --border: oklch(0.9276 0.0058 264.5313);
+          --input: oklch(0.9276 0.0058 264.5313);
+          --ring: oklch(0.6716 0.1368 48.5130);
+          --chart-1: oklch(0.5940 0.0443 196.0233);
+          --chart-2: oklch(0.7214 0.1337 49.9802);
+          --chart-3: oklch(0.8721 0.0864 68.5474);
+          --chart-4: oklch(0.6268 0 0);
+          --chart-5: oklch(0.6830 0 0);
+          --radius: 0.75rem;
+          --font-sans: 'Geist Mono', ui-monospace, monospace;
+      }
+
+      .dark {
+          --background: oklch(0.1797 0.0043 308.1928);
+          --foreground: oklch(0.8109 0 0);
+          --card: oklch(0.1822 0 0);
+          --card-foreground: oklch(0.8109 0 0);
+          --popover: oklch(0.1797 0.0043 308.1928);
+          --popover-foreground: oklch(0.8109 0 0);
+          --primary: oklch(0.7214 0.1337 49.9802);
+          --primary-foreground: oklch(0.1797 0.0043 308.1928);
+          --secondary: oklch(0.5940 0.0443 196.0233);
+          --secondary-foreground: oklch(0.1797 0.0043 308.1928);
+          --muted: oklch(0.2520 0 0);
+          --muted-foreground: oklch(0.6268 0 0);
+          --accent: oklch(0.3211 0 0);
+          --accent-foreground: oklch(0.8109 0 0);
+          --destructive: oklch(0.5940 0.0443 196.0233);
+          --destructive-foreground: oklch(0.1797 0.0043 308.1928);
+          --border: oklch(0.2520 0 0);
+          --input: oklch(0.2520 0 0);
+          --ring: oklch(0.7214 0.1337 49.9802);
+          --chart-1: oklch(0.5940 0.0443 196.0233);
+          --chart-2: oklch(0.7214 0.1337 49.9802);
+          --chart-3: oklch(0.8721 0.0864 68.5474);
+          --chart-4: oklch(0.6268 0 0);
+          --chart-5: oklch(0.6830 0 0);
+      }
+      
+      body {
+        font-family: var(--font-sans);
+        letter-spacing: 0rem;
+      }
+    </style>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              background: 'var(--background)',
+              foreground: 'var(--foreground)',
+              card: 'var(--card)',
+              'card-foreground': 'var(--card-foreground)',
+              popover: 'var(--popover)',
+              'popover-foreground': 'var(--popover-foreground)',
+              primary: 'var(--primary)',
+              'primary-foreground': 'var(--primary-foreground)',
+              secondary: 'var(--secondary)',
+              'secondary-foreground': 'var(--secondary-foreground)',
+              muted: 'var(--muted)',
+              'muted-foreground': 'var(--muted-foreground)',
+              accent: 'var(--accent)',
+              'accent-foreground': 'var(--accent-foreground)',
+              destructive: 'var(--destructive)',
+              'destructive-foreground': 'var(--destructive-foreground)',
+              border: 'var(--border)',
+              input: 'var(--input)',
+              ring: 'var(--ring)',
+              'chart-1': 'var(--chart-1)',
+              'chart-2': 'var(--chart-2)',
+              'chart-3': 'var(--chart-3)',
+              'chart-4': 'var(--chart-4)',
+              'chart-5': 'var(--chart-5)',
+            },
+            borderRadius: {
+              lg: 'var(--radius)',
+              md: 'calc(var(--radius) - 2px)',
+              sm: 'calc(var(--radius) - 4px)',
+            },
+            fontFamily: {
+              sans: ['var(--font-sans)', 'ui-monospace', 'monospace'],
+            }
+          }
+        }
+      }
+    </script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.3.1",
+    "react/": "https://esm.sh/react@18.3.1/",
+    "react-dom": "https://esm.sh/react-dom@18.3.1",
+    "react-dom/": "https://esm.sh/react-dom@18.3.1/",
+    "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+    "recharts": "https://esm.sh/recharts@2.13.0?deps=react@18.3.1,react-dom@18.3.1,react-is@18.3.1,prop-types@15.8.1",
+    "jspdf": "https://esm.sh/jspdf@2.5.2",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "three": "https://esm.sh/three@0.160.0",
+    "three/examples/jsm/controls/OrbitControls": "https://esm.sh/three@0.160.0/examples/jsm/controls/OrbitControls.js?deps=three@0.160.0",
+    "prop-types": "https://esm.sh/prop-types@15.8.1",
+    "react-is": "https://esm.sh/react-is@18.3.1",
+    "three/": "https://aistudiocdn.com/three@^0.181.2/"
+  }
+}
+</script>
+</head>
+  <body class="bg-background text-foreground font-sans antialiased">
+    <div id="root"></div>
+  </body>
+</html>
