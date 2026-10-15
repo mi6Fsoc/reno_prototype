@@ -1,1 +1,1 @@
-Test: https://reno-766358791952.us-west1.run.app
+Test: https://reno-studio-1.ai.studio
