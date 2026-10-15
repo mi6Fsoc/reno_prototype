@@ -3,28 +3,30 @@ import { RenovationPlan, PropertyDetails } from '../types';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import Button from './Button';
 import jsPDF from 'jspdf';
+import ThreeVisualizer from './ThreeVisualizer';
 import { generateRenovationImage, generateBlueprintImage } from '../services/geminiService';
 
 interface DashboardProps {
   plan: RenovationPlan;
   details: PropertyDetails;
   onReset: () => void;
+  onRequestConsultation?: () => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ plan, details, onReset }) => {
+const Dashboard: React.FC<DashboardProps> = ({ plan, details, onReset, onRequestConsultation }) => {
   const [imageSize, setImageSize] = useState<'1K' | '2K' | '4K'>('1K');
   const [phaseImages, setPhaseImages] = useState<{ [key: number]: string }>({});
   const [generatingPhase, setGeneratingPhase] = useState<{ [key: number]: boolean }>({});
   
-  // Blueprint State
+  // Blueprints State
   const [blueprints, setBlueprints] = useState<{ [key: number]: string }>({});
   const [generatingBlueprint, setGeneratingBlueprint] = useState<{ [key: number]: boolean }>({});
 
   const [animateCharts, setAnimateCharts] = useState(false);
+  const [selectedPhaseIdx, setSelectedPhaseIdx] = useState<number>(0);
 
   useEffect(() => {
-    // Trigger animation after mount
-    const timer = setTimeout(() => setAnimateCharts(true), 100);
+    const timer = setTimeout(() => setAnimateCharts(true), 150);
     return () => clearTimeout(timer);
   }, []);
 
@@ -32,356 +34,610 @@ const Dashboard: React.FC<DashboardProps> = ({ plan, details, onReset }) => {
     const doc = new jsPDF();
     
     // Header
-    doc.setFontSize(20);
-    doc.setTextColor(171, 35, 124); // Primary approximation
-    doc.text("Reno | Renovation Plan", 20, 20);
-    
-    doc.setFontSize(12);
-    doc.setTextColor(60, 60, 60);
-    doc.text(`Address: ${details.address}`, 20, 30);
-    doc.text(`Est. Cost: €${plan.totalCost.toLocaleString()}`, 20, 38);
-    doc.text(`Duration: ${plan.totalDuration} Weeks`, 20, 46);
+    doc.setFillColor(21, 23, 28);
+    doc.rect(0, 0, 210, 45, 'F');
 
-    // Summary
-    doc.setFontSize(14);
-    doc.text("Executive Summary", 20, 60);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+    doc.setTextColor(185, 138, 69); // Primary gold
+    doc.text("RENO · BERLIN RETROFIT DOSSIER", 20, 22);
+
     doc.setFontSize(10);
+    doc.setTextColor(255, 232, 184);
+    doc.text(`PROPERTY: ${details.address.toUpperCase()}`, 20, 32);
+    doc.text(`DATE: ${new Date().toLocaleDateString('de-DE')} · GEG 2024 / KfW 261 CONFORMING`, 20, 38);
+
+    // Key KPIs Table
+    doc.setFillColor(34, 37, 44);
+    doc.roundedRect(20, 52, 170, 24, 2, 2, 'F');
+    
+    doc.setFontSize(9);
+    doc.setTextColor(161, 161, 170);
+    doc.text("TOTAL INVESTMENT", 28, 60);
+    doc.text("EST. DURATION", 75, 60);
+    doc.text("TARGET RATING", 120, 60);
+    doc.text("STYLE", 155, 60);
+
+    doc.setFontSize(13);
+    doc.setTextColor(255, 255, 255);
+    doc.text(`€${plan.totalCost.toLocaleString()}`, 28, 69);
+    doc.text(`${plan.totalDuration} Weeks`, 75, 69);
+    doc.text(`Class B (Effizienzhaus 55)`, 120, 69);
+    doc.text(plan.buildingStyle.split(' ')[0], 155, 69);
+
+    // Executive Summary
+    doc.setFontSize(12);
+    doc.setTextColor(21, 23, 28);
+    doc.text("1. EXECUTIVE RETROFIT STRATEGY", 20, 88);
+    doc.setFontSize(9.5);
+    doc.setTextColor(60, 60, 60);
     const summaryLines = doc.splitTextToSize(plan.summary, 170);
-    doc.text(summaryLines, 20, 70);
+    doc.text(summaryLines, 20, 96);
 
-    let yPos = 70 + (summaryLines.length * 5) + 10;
+    let yPos = 96 + (summaryLines.length * 4.5) + 12;
 
-    // Phases
-    doc.setFontSize(14);
-    doc.text("Project Phases", 20, yPos);
-    yPos += 10;
-    
+    // Project Phases
+    doc.setFontSize(12);
+    doc.setTextColor(21, 23, 28);
+    doc.text("2. STAGED IMPLEMENTATION PHASES", 20, yPos);
+    yPos += 8;
+
     plan.phases.forEach((phase, i) => {
-        doc.setFontSize(11);
-        doc.text(`${i + 1}. ${phase.name} (${phase.durationWeeks} weeks)`, 20, yPos);
-        doc.setFontSize(9);
-        doc.text(`Est: €${phase.costEstimate.toLocaleString()}`, 150, yPos);
-        yPos += 5;
-        doc.setTextColor(100);
-        const descLines = doc.splitTextToSize(phase.description, 160);
-        doc.text(descLines, 25, yPos);
-        doc.setTextColor(60);
-        yPos += (descLines.length * 4) + 6;
+      if (yPos > 260) {
+        doc.addPage();
+        yPos = 20;
+      }
+      doc.setFillColor(245, 245, 247);
+      doc.roundedRect(20, yPos, 170, 18, 1, 1, 'F');
+      
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(185, 138, 69);
+      doc.text(`${i + 1}. ${phase.name}`, 24, yPos + 7);
+
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(40, 40, 40);
+      doc.setFontSize(9);
+      doc.text(`Duration: ${phase.durationWeeks} wks | Cost Est: €${phase.costEstimate.toLocaleString()}`, 105, yPos + 7);
+
+      doc.setFontSize(8);
+      doc.setTextColor(100, 100, 100);
+      const descLine = doc.splitTextToSize(phase.description, 160)[0] || '';
+      doc.text(descLine, 24, yPos + 13);
+      yPos += 22;
     });
 
-    // Funding
-    yPos += 10;
-    doc.setFontSize(14);
-    doc.setTextColor(0);
-    doc.text("Eligible Funding", 20, yPos);
-    yPos += 10;
-    
-    plan.funding.forEach(fund => {
-        doc.setFontSize(11);
-        doc.setTextColor(171, 35, 124);
-        doc.text(`[${fund.name}] ${fund.amount}`, 20, yPos);
-        doc.setTextColor(60);
-        yPos += 6;
-    });
-
-    doc.save("reno-plan.pdf");
-  };
-
-  const checkApiKey = async () => {
-      if (window.aistudio && window.aistudio.hasSelectedApiKey) {
-        const hasKey = await window.aistudio.hasSelectedApiKey();
-        if (!hasKey) {
-            try {
-                await window.aistudio.openSelectKey();
-                return true;
-            } catch (e) {
-                console.error("Failed to select key", e);
-                return false;
-            }
-        }
-        return true;
+    // Funding Program Breakdown
+    if (yPos > 240) {
+      doc.addPage();
+      yPos = 20;
     }
-    return true; // Assume true if not in AI Studio env or helpers missing
+    yPos += 6;
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(21, 23, 28);
+    doc.text("3. IDENTIFIED SUBSIDIES & GRANTS (GERMANY / BERLIN)", 20, yPos);
+    yPos += 8;
+
+    plan.funding.forEach((fund) => {
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(185, 138, 69);
+      doc.text(`[${fund.name}]`, 20, yPos);
+      doc.setTextColor(20, 20, 20);
+      doc.text(fund.amount, 85, yPos);
+      yPos += 5;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(90, 90, 90);
+      doc.text(fund.description, 20, yPos);
+      yPos += 8;
+    });
+
+    doc.setFontSize(7.5);
+    doc.setTextColor(140, 140, 140);
+    doc.text("Generated by Reno GmbH · Certified Energy Consulting · Krausenstraße 9, 10117 Berlin · info@reno.de", 20, 285);
+
+    doc.save(`reno-retrofit-plan-${details.address.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`);
   };
 
   const handleGenerateImage = async (index: number, description: string) => {
-    if (!await checkApiKey()) return;
-
     setGeneratingPhase(prev => ({ ...prev, [index]: true }));
     try {
-        const imageUrl = await generateRenovationImage(description, plan.buildingStyle, imageSize);
-        setPhaseImages(prev => ({ ...prev, [index]: imageUrl }));
+      const imageUrl = await generateRenovationImage(description, plan.buildingStyle, imageSize);
+      setPhaseImages(prev => ({ ...prev, [index]: imageUrl }));
     } catch (error) {
-        console.error("Failed to generate image", error);
-        alert("Could not generate image. Please ensure you have a valid paid API key selected.");
+      console.error("Failed to generate image", error);
     } finally {
-        setGeneratingPhase(prev => ({ ...prev, [index]: false }));
+      setGeneratingPhase(prev => ({ ...prev, [index]: false }));
     }
   };
 
   const handleGenerateBlueprint = async (index: number, name: string, description: string) => {
-    if (!await checkApiKey()) return;
-
     setGeneratingBlueprint(prev => ({ ...prev, [index]: true }));
     try {
-        const imageUrl = await generateBlueprintImage(name, description, plan.buildingStyle);
-        setBlueprints(prev => ({ ...prev, [index]: imageUrl }));
+      const imageUrl = await generateBlueprintImage(name, description, plan.buildingStyle);
+      setBlueprints(prev => ({ ...prev, [index]: imageUrl }));
     } catch (error) {
-        console.error("Failed to generate blueprint", error);
-        alert("Could not generate blueprint.");
+      console.error("Failed to generate blueprint", error);
     } finally {
-        setGeneratingBlueprint(prev => ({ ...prev, [index]: false }));
+      setGeneratingBlueprint(prev => ({ ...prev, [index]: false }));
     }
   };
 
-  const maxCost = Math.max(...plan.phases.map(p => p.costEstimate));
+  const maxCost = Math.max(...plan.phases.map(p => p.costEstimate), 1);
 
   return (
-    <div className="space-y-8 animate-fade-in pb-20">
+    <div className="space-y-8 animate-fade-in pb-16">
       
-      {/* Header Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-card p-6 rounded-xl border border-border shadow-sm">
-          <p className="text-sm text-muted-foreground">Total Budget</p>
-          <p className="text-2xl font-bold text-card-foreground">€{plan.totalCost.toLocaleString()}</p>
+      {/* Top Breadcrumb & Action Row */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-[8px] bg-[#1A1C22] border border-[#322A1F]">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onReset}
+            className="w-8 h-8 rounded-[6px] bg-[#221E19] border border-[#352D21] hover:border-primary text-zinc-400 hover:text-white flex items-center justify-center transition-colors"
+            title="Back to Parameters"
+          >
+            <i className="fas fa-arrow-left text-xs"></i>
+          </button>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-mono text-primary uppercase tracking-wider">
+                Retrofit Dossier Ready
+              </span>
+              <span className="text-zinc-600">·</span>
+              <span className="text-[11px] font-mono text-[#FFE8B8]">{details.address}</span>
+            </div>
+            <h2 className="text-lg font-display font-semibold text-white">
+              Institutional Modernization Plan
+            </h2>
+          </div>
         </div>
-        <div className="bg-card p-6 rounded-xl border border-border shadow-sm">
-          <p className="text-sm text-muted-foreground">Duration</p>
-          <p className="text-2xl font-bold text-card-foreground">{plan.totalDuration} Weeks</p>
-        </div>
-        <div className="bg-card p-6 rounded-xl border border-border shadow-sm">
-          <p className="text-sm text-muted-foreground">Style Detected</p>
-          <p className="text-xl font-bold text-card-foreground capitalize">{plan.buildingStyle}</p>
-        </div>
-         <div className="bg-card p-6 rounded-xl border border-border shadow-sm flex flex-col justify-center">
-          <Button onClick={handleExport} variant="outline" className="w-full">
-            <i className="fas fa-file-pdf"></i> Export PDF
+
+        <div className="flex items-center gap-2.5">
+          {onRequestConsultation && (
+            <Button onClick={onRequestConsultation} variant="secondary" size="sm">
+              <i className="fas fa-user-tie text-primary text-xs"></i>
+              Book Certified Engineer
+            </Button>
+          )}
+          <Button onClick={handleExport} variant="primary" size="sm">
+            <i className="fas fa-file-pdf text-xs"></i>
+            Export PDF Dossier
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {/* Top 4 KPI Metric Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
-        {/* Left Column: Visuals & Timeline */}
-        <div className="lg:col-span-2 space-y-8">
-            
-            {/* Cost/Timeline Analysis - Animated Bar Chart */}
-            <div className="bg-card p-6 rounded-xl border border-border shadow-sm">
-                <div className="flex justify-between items-baseline mb-6">
-                   <h3 className="text-lg font-bold text-card-foreground">Construction Cost & Timeline</h3>
-                   <span className="text-xs text-muted-foreground">Est. Cost vs Phase</span>
-                </div>
-                <div className="space-y-5">
-                    {plan.phases.map((phase, idx) => {
-                        const widthPercentage = (phase.costEstimate / maxCost) * 100;
-                        return (
-                            <div key={idx} className="grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-4 items-center group">
-                                {/* Y-Axis: Labels */}
-                                <div className="md:col-span-4 flex flex-row md:flex-col justify-between md:justify-center items-center md:items-end md:text-right pr-2">
-                                    <span className="font-semibold text-card-foreground text-sm leading-tight flex items-center gap-2">
-                                      <span className="w-5 h-5 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-[10px] md:hidden">{idx+1}</span>
-                                      {phase.name}
-                                    </span>
-                                    <span className="text-muted-foreground text-xs font-mono">{phase.durationWeeks} wks</span>
-                                </div>
-
-                                {/* X-Axis: Animated Bar */}
-                                <div className="md:col-span-8 relative h-9 bg-secondary/10 rounded-md overflow-hidden flex items-center border border-border/50">
-                                    <div 
-                                        className="h-full bg-chart-1 opacity-90 rounded-r-sm transition-all duration-[1500ms] ease-out shadow-sm relative group-hover:bg-chart-1/80 group-hover:shadow-md"
-                                        style={{ width: animateCharts ? `${widthPercentage}%` : '0%' }}
-                                    >
-                                    </div>
-                                    <span className="absolute left-3 text-xs font-mono font-medium text-foreground z-10 drop-shadow-sm bg-background/30 px-1 rounded backdrop-blur-[1px]">
-                                        €{phase.costEstimate.toLocaleString()}
-                                    </span>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-
-            {/* Detailed Phases */}
-            <div className="bg-card p-6 rounded-xl border border-border shadow-sm">
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-bold text-card-foreground">Phase Details</h3>
-                    <div className="flex items-center gap-2">
-                        <label className="text-xs text-muted-foreground font-medium">Image Quality:</label>
-                        <select 
-                            className="bg-background border border-input text-foreground text-xs rounded px-2 py-1 focus:ring-2 focus:ring-ring focus:border-input"
-                            value={imageSize}
-                            onChange={(e) => setImageSize(e.target.value as '1K' | '2K' | '4K')}
-                        >
-                            <option value="1K">1K (Fast)</option>
-                            <option value="2K">2K (High)</option>
-                            <option value="4K">4K (Ultra)</option>
-                        </select>
-                    </div>
-                </div>
-                <div className="space-y-6">
-                    {plan.phases.map((phase, idx) => (
-                        <div key={idx} className="border-b border-border last:border-0 pb-6 last:pb-0">
-                            <div className="flex gap-4">
-                                <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold flex-shrink-0">
-                                    {idx + 1}
-                                </div>
-                                <div className="flex-1">
-                                    <div className="flex justify-between items-start">
-                                        <div>
-                                            <h4 className="font-semibold text-card-foreground">{phase.name}</h4>
-                                            <p className="text-sm text-muted-foreground mt-1">{phase.description}</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-4 mt-2 text-xs font-medium text-muted-foreground mb-3">
-                                        <span><i className="far fa-clock"></i> {phase.durationWeeks} weeks</span>
-                                        <span><i className="fas fa-euro-sign"></i> {phase.costEstimate.toLocaleString()} est.</span>
-                                    </div>
-                                    
-                                    {/* Image Generation Section */}
-                                    <div className="mt-3">
-                                        {phaseImages[idx] ? (
-                                            <div className="relative rounded-lg overflow-hidden shadow-sm aspect-video group">
-                                                <img src={phaseImages[idx]} alt={phase.name} className="w-full h-full object-cover" />
-                                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none" />
-                                                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                     <a href={phaseImages[idx]} download={`reno-phase-${idx+1}.png`} className="bg-card/90 text-card-foreground px-2 py-1 rounded text-xs font-medium shadow hover:bg-card">
-                                                        Download
-                                                     </a>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <Button 
-                                                variant="secondary" 
-                                                onClick={() => handleGenerateImage(idx, phase.description)}
-                                                isLoading={generatingPhase[idx]}
-                                                className="text-xs py-2 px-3"
-                                            >
-                                                <i className="fas fa-image"></i> Visualize Phase ({imageSize})
-                                            </Button>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-
-            {/* Blueprints Section */}
-            <div className="bg-card p-6 rounded-xl border border-border shadow-sm">
-                 <h3 className="text-lg font-bold text-card-foreground mb-4">Architectural Blueprints</h3>
-                 <p className="text-sm text-muted-foreground mb-6">Generate technical schematic drawings for each construction phase.</p>
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {plan.phases.map((phase, idx) => (
-                        <div key={idx} className="border border-border rounded-lg p-3 bg-background/50 flex flex-col h-full">
-                            <div className="flex items-center gap-2 mb-3">
-                                <span className="text-xs font-bold text-muted-foreground uppercase bg-muted px-1.5 py-0.5 rounded">{idx + 1}</span>
-                                <span className="text-sm font-semibold text-card-foreground truncate">{phase.name}</span>
-                            </div>
-                            
-                            <div className="flex-grow min-h-[160px] bg-secondary/5 rounded-md border border-dashed border-border flex items-center justify-center overflow-hidden relative group">
-                                {blueprints[idx] ? (
-                                    <>
-                                        <img src={blueprints[idx]} alt={`${phase.name} Blueprint`} className="w-full h-full object-cover" />
-                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none" />
-                                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                             <a href={blueprints[idx]} download={`blueprint-${idx+1}.png`} className="bg-card/90 text-card-foreground px-2 py-1 rounded text-xs font-medium shadow hover:bg-card">
-                                                <i className="fas fa-download"></i>
-                                             </a>
-                                        </div>
-                                    </>
-                                ) : (
-                                    <div className="text-center p-4">
-                                        <i className="fas fa-drafting-compass text-3xl text-muted-foreground/30 mb-3"></i>
-                                        <div className="flex justify-center">
-                                            <Button 
-                                                variant="outline"
-                                                onClick={() => handleGenerateBlueprint(idx, phase.name, phase.description)}
-                                                isLoading={generatingBlueprint[idx]}
-                                                className="text-[10px] h-8 px-3"
-                                            >
-                                                Generate Blueprint
-                                            </Button>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    ))}
-                 </div>
-            </div>
-
+        <div className="bg-[#1A1C22] p-5 rounded-[8px] border border-[#322A1F] hover:border-primary/50 transition-colors">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-mono text-zinc-400">Total Investment Est.</p>
+            <span className="text-xs text-primary font-mono">Gross</span>
+          </div>
+          <p className="text-2xl sm:text-3xl font-display font-bold text-white mt-1.5 tabular-nums">
+            €{plan.totalCost.toLocaleString()}
+          </p>
+          <p className="text-[11px] font-mono text-zinc-400 mt-1">
+            €{Math.round(plan.totalCost / (details.sqm || 1))} / m² GFA
+          </p>
         </div>
 
-        {/* Right Column: Financials & ESG */}
-        <div className="space-y-8">
-            
-            {/* ROI Chart */}
-            <div className="bg-card p-6 rounded-xl border border-border shadow-sm">
-                <h3 className="text-lg font-bold text-card-foreground mb-6">ROI Projection</h3>
-                <div className="h-48">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={plan.roiProjection}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                            <XAxis dataKey="year" fontSize={12} stroke="var(--muted-foreground)" />
-                            <YAxis unit="%" fontSize={12} stroke="var(--muted-foreground)" />
-                            <Tooltip 
-                                contentStyle={{ borderRadius: 'var(--radius)', border: '1px solid var(--border)', backgroundColor: 'var(--card)', color: 'var(--card-foreground)', boxShadow: 'var(--shadow-lg)' }}
-                            />
-                            <Line type="monotone" dataKey="value" stroke="var(--chart-2)" strokeWidth={3} dot={{r: 4, fill: 'var(--chart-2)'}} activeDot={{r: 6}} />
-                        </LineChart>
-                    </ResponsiveContainer>
-                </div>
-                <p className="text-xs text-muted-foreground mt-4 text-center">Projected cumulative ROI over 10 years</p>
-            </div>
+        <div className="bg-[#1A1C22] p-5 rounded-[8px] border border-[#322A1F] hover:border-primary/50 transition-colors">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-mono text-zinc-400">Construction Timeline</p>
+            <span className="text-xs text-[#FFE8B8] font-mono">4 Phases</span>
+          </div>
+          <p className="text-2xl sm:text-3xl font-display font-bold text-white mt-1.5 tabular-nums">
+            {plan.totalDuration} Weeks
+          </p>
+          <p className="text-[11px] font-mono text-zinc-400 mt-1">
+            ~{Math.round(plan.totalDuration / 4.3)} months duration
+          </p>
+        </div>
 
-            {/* CO2 Savings */}
-            <div className="bg-card p-6 rounded-xl border border-border shadow-sm">
-                <h3 className="text-lg font-bold text-card-foreground mb-4">CO₂ Impact</h3>
-                <div className="space-y-5">
-                    {plan.co2Savings.map((item, idx) => (
-                        <div key={idx}>
-                            <div className="flex justify-between text-sm mb-1">
-                                <span className="text-card-foreground font-medium">{item.category}</span>
-                                <span className="font-semibold text-primary">{item.savingTons}t saved</span>
-                            </div>
-                            <div className="w-full bg-secondary rounded-full h-2 mb-1.5">
-                                <div 
-                                    className="bg-primary h-2 rounded-full transition-all duration-1000 ease-out" 
-                                    style={{ width: animateCharts ? `${Math.min((item.savingTons / 10) * 100, 100)}%` : '0%' }}
-                                ></div>
-                            </div>
-                            {item.description && (
-                                <p className="text-xs text-muted-foreground leading-relaxed">{item.description}</p>
-                            )}
-                        </div>
-                    ))}
-                </div>
-            </div>
+        <div className="bg-[#1A1C22] p-5 rounded-[8px] border border-[#322A1F] hover:border-primary/50 transition-colors">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-mono text-zinc-400">Target Efficiency</p>
+            <span className="text-xs text-emerald-400 font-mono">GEG Standard</span>
+          </div>
+          <div className="flex items-baseline gap-2 mt-1.5">
+            <span className="text-2xl sm:text-3xl font-display font-bold text-white">Class B</span>
+            <span className="text-xs font-mono text-zinc-400 line-through">Class {details.currentEfficiency}</span>
+          </div>
+          <p className="text-[11px] font-mono text-[#FFE8B8] mt-1">
+            Effizienzhaus 55 Qualified
+          </p>
+        </div>
 
-            {/* Funding Badges */}
-            <div className="bg-card p-6 rounded-xl border border-border shadow-sm">
-                <h3 className="text-lg font-bold text-card-foreground mb-4"><i className="fas fa-award text-chart-4 mr-2"></i> Eligible Funding</h3>
-                <div className="space-y-3">
-                    {plan.funding.map((fund, idx) => (
-                        <div key={idx} className="bg-muted p-3 rounded-lg border border-border">
-                            <div className="flex justify-between items-center mb-1">
-                                <span className="font-bold text-chart-5">{fund.name}</span>
-                                <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">{fund.amount}</span>
-                            </div>
-                            <p className="text-xs text-muted-foreground">{fund.description}</p>
-                        </div>
-                    ))}
-                </div>
-            </div>
-            
-            <div className="pt-8 text-center">
-                 <button onClick={onReset} className="text-muted-foreground hover:text-primary text-sm underline">Start New Project</button>
-            </div>
+        <div className="bg-[#1A1C22] p-5 rounded-[8px] border border-[#322A1F] hover:border-primary/50 transition-colors">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-mono text-zinc-400">German Subsidies Matched</p>
+            <span className="text-xs text-primary font-mono">{plan.funding.length} Programs</span>
+          </div>
+          <p className="text-2xl sm:text-3xl font-display font-bold text-primary mt-1.5">
+            {plan.funding[0]?.amount || 'KfW 261'}
+          </p>
+          <p className="text-[11px] font-mono text-zinc-400 mt-1">
+            Non-repayable grants eligible
+          </p>
+        </div>
 
+      </div>
+
+      {/* Executive Summary Card */}
+      <div className="p-6 rounded-[8px] bg-[#1E1C18] border border-[#3E3426] relative overflow-hidden">
+        <div className="flex items-start gap-4">
+          <div className="w-10 h-10 rounded-full bg-[#2B2319] border border-primary/50 flex items-center justify-center text-primary shrink-0 mt-0.5">
+            <i className="fas fa-compass-drafting text-sm"></i>
+          </div>
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[11px] font-mono uppercase tracking-wider text-primary">
+                Executive Strategy · {plan.buildingStyle}
+              </span>
+            </div>
+            <p className="text-sm sm:text-base font-serif-editorial text-[#FFE8B8] leading-relaxed">
+              {plan.summary}
+            </p>
+          </div>
         </div>
       </div>
+
+      {/* Main Grid: 2 Columns */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        {/* Left Column (8 cols): Cost & Timeline, Interactive 3D Visualizer, Phase Breakdown & Blueprints */}
+        <div className="lg:col-span-7 xl:col-span-8 space-y-8">
+          
+          {/* Construction Cost & Timeline Animated Bar Chart */}
+          <div className="bg-[#1A1C22] p-6 rounded-[8px] border border-[#322A1F]">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
+              <div>
+                <h3 className="text-base font-display font-semibold text-white">
+                  Staged Construction Budget & Timeline
+                </h3>
+                <p className="text-xs font-mono text-zinc-400 mt-0.5">
+                  Sequential staging to maintain tenant occupancy throughout retrofit
+                </p>
+              </div>
+              <span className="text-xs font-mono text-primary bg-[#25211B] border border-[#3E3426] px-2.5 py-1 rounded">
+                Total: €{plan.totalCost.toLocaleString()}
+              </span>
+            </div>
+
+            <div className="space-y-4">
+              {plan.phases.map((phase, idx) => {
+                const widthPercentage = (phase.costEstimate / maxCost) * 100;
+                const costShare = Math.round((phase.costEstimate / plan.totalCost) * 100);
+                const isSelected = selectedPhaseIdx === idx;
+
+                return (
+                  <div
+                    key={idx}
+                    onClick={() => setSelectedPhaseIdx(idx)}
+                    className={`p-3 rounded-[6px] transition-all cursor-pointer border ${
+                      isSelected
+                        ? 'bg-[#24201A] border-primary/80 shadow-sm'
+                        : 'bg-[#15171C] border-[#2A2D35] hover:border-[#3E3426]'
+                    }`}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-5 h-5 rounded-[4px] flex items-center justify-center text-[10px] font-mono font-bold ${
+                          isSelected ? 'bg-primary text-[#15171C]' : 'bg-[#22252C] text-zinc-400'
+                        }`}>
+                          0{idx + 1}
+                        </span>
+                        <span className="text-xs font-medium text-white truncate max-w-sm">
+                          {phase.name}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs font-mono text-zinc-400">
+                        <span>{phase.durationWeeks} Weeks</span>
+                        <span className="text-[#FFE8B8] font-semibold">€{phase.costEstimate.toLocaleString()}</span>
+                        <span className="text-zinc-500 text-[10px]">({costShare}%)</span>
+                      </div>
+                    </div>
+
+                    {/* Animated Progress Bar */}
+                    <div className="relative h-3 bg-[#1E2027] rounded-full overflow-hidden border border-[#2B2E37]">
+                      <div
+                        className="h-full rounded-full transition-all duration-[1200ms] ease-out shadow-sm"
+                        style={{
+                          width: animateCharts ? `${widthPercentage}%` : '0%',
+                          background: isSelected
+                            ? 'linear-gradient(90deg, #8E672F 0%, #B98A45 70%, #FFE8B8 100%)'
+                            : 'linear-gradient(90deg, #4A3E2D 0%, #755B33 100%)',
+                        }}
+                      />
+                    </div>
+
+                    {isSelected && (
+                      <p className="mt-2.5 text-xs font-serif-editorial text-[#FFE8B8]/90 leading-relaxed border-t border-[#322A1F] pt-2">
+                        {phase.description}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Interactive 3D Visualizer Embedded */}
+          <div className="bg-[#1A1C22] p-6 rounded-[8px] border border-[#322A1F]">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-base font-display font-semibold text-white">
+                  3D Spatial Retrofit Simulation
+                </h3>
+                <p className="text-xs font-mono text-zinc-400 mt-0.5">
+                  Interactive WebGL model calibrated to {details.sqm} m² GFA footprint
+                </p>
+              </div>
+              <span className="text-xs font-mono text-primary bg-[#25211B] px-2.5 py-1 rounded border border-[#3E3426]">
+                WebGL 2.0 Real-time
+              </span>
+            </div>
+            
+            <div className="h-[380px]">
+              <ThreeVisualizer sqm={details.sqm} style={plan.buildingStyle} />
+            </div>
+          </div>
+
+          {/* Architectural Blueprints & Phase Visualizations */}
+          <div className="bg-[#1A1C22] p-6 rounded-[8px] border border-[#322A1F]">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
+              <div>
+                <h3 className="text-base font-display font-semibold text-white">
+                  Technical Blueprints & Phase Visualization
+                </h3>
+                <p className="text-xs font-mono text-zinc-400 mt-0.5">
+                  AI-rendered architectural CAD schematics and photorealistic facade completions
+                </p>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono text-zinc-400">Render Quality:</span>
+                <select
+                  value={imageSize}
+                  onChange={(e) => setImageSize(e.target.value as '1K' | '2K' | '4K')}
+                  className="bg-[#15171C] border border-[#322A1F] text-xs font-mono text-[#FFE8B8] rounded-[6px] px-2 py-1 focus:border-primary focus:outline-none"
+                >
+                  <option value="1K">1K Standard (Fast)</option>
+                  <option value="2K">2K High Resolution</option>
+                  <option value="4K">4K Ultra Fidelity</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Grid of Phase Cards with Render / Blueprint Actions */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {plan.phases.map((phase, idx) => (
+                <div key={idx} className="p-4 rounded-[6px] bg-[#15171C] border border-[#2B2E37] flex flex-col justify-between space-y-3">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-mono text-primary font-bold">Phase 0{idx + 1}</span>
+                      <span className="text-[11px] font-mono text-zinc-400">{phase.durationWeeks} wks</span>
+                    </div>
+                    <h4 className="text-xs font-display font-semibold text-white line-clamp-1">{phase.name}</h4>
+                    <p className="text-[11px] font-serif-editorial text-zinc-400 mt-1 line-clamp-2">
+                      {phase.description}
+                    </p>
+                  </div>
+
+                  {/* Render Visual Container */}
+                  <div className="aspect-video rounded-[6px] bg-[#1E2027] border border-[#322A1F] overflow-hidden flex items-center justify-center relative group">
+                    {phaseImages[idx] ? (
+                      <>
+                        <img
+                          src={phaseImages[idx]}
+                          alt={phase.name}
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <a
+                            href={phaseImages[idx]}
+                            download={`reno-phase-${idx + 1}.png`}
+                            className="px-2 py-1 rounded bg-black/80 text-[10px] font-mono text-[#FFE8B8] border border-[#3E3426] hover:text-white"
+                          >
+                            <i className="fas fa-download mr-1"></i> Save
+                          </a>
+                        </div>
+                      </>
+                    ) : blueprints[idx] ? (
+                      <>
+                        <img
+                          src={blueprints[idx]}
+                          alt={`Blueprint ${phase.name}`}
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <a
+                            href={blueprints[idx]}
+                            download={`blueprint-phase-${idx + 1}.png`}
+                            className="px-2 py-1 rounded bg-black/80 text-[10px] font-mono text-[#FFE8B8] border border-[#3E3426] hover:text-white"
+                          >
+                            <i className="fas fa-download mr-1"></i> Save
+                          </a>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-center p-3 space-y-2">
+                        <i className="fas fa-layer-group text-2xl text-zinc-600"></i>
+                        <p className="text-[11px] font-mono text-zinc-500">No visualization cached</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Dual Action Triggers */}
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => handleGenerateImage(idx, phase.description)}
+                      disabled={generatingPhase[idx]}
+                      className="py-1.5 px-2 rounded-[6px] bg-[#221E19] border border-[#352D21] hover:border-primary text-[11px] font-mono text-[#FFE8B8] flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
+                    >
+                      {generatingPhase[idx] ? (
+                        <i className="fas fa-circle-notch fa-spin text-[10px]"></i>
+                      ) : (
+                        <i className="fas fa-eye text-[10px] text-primary"></i>
+                      )}
+                      <span>Render Photo</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleGenerateBlueprint(idx, phase.name, phase.description)}
+                      disabled={generatingBlueprint[idx]}
+                      className="py-1.5 px-2 rounded-[6px] bg-[#1E2027] border border-[#322A1F] hover:border-primary text-[11px] font-mono text-zinc-300 hover:text-white flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
+                    >
+                      {generatingBlueprint[idx] ? (
+                        <i className="fas fa-circle-notch fa-spin text-[10px]"></i>
+                      ) : (
+                        <i className="fas fa-drafting-compass text-[10px] text-zinc-400"></i>
+                      )}
+                      <span>CAD Blueprint</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+        </div>
+
+        {/* Right Column (4 cols / 5 cols): ROI Curve, CO2 Decarbonization, German Funding Programs */}
+        <div className="lg:col-span-5 xl:col-span-4 space-y-8">
+          
+          {/* 10-Year Cumulative ROI Chart */}
+          <div className="bg-[#1A1C22] p-6 rounded-[8px] border border-[#322A1F]">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-display font-semibold text-white">
+                10-Year ROI Projection
+              </h3>
+              <span className="text-xs font-mono text-primary">+68.5% Net</span>
+            </div>
+
+            <div className="h-48 w-full mt-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={plan.roiProjection} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#2B2D35" />
+                  <XAxis dataKey="year" fontSize={11} stroke="#71717A" tickFormatter={(v) => `Yr ${v}`} />
+                  <YAxis unit="%" fontSize={11} stroke="#71717A" />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#181A20',
+                      border: '1px solid #3E3426',
+                      borderRadius: '8px',
+                      color: '#FFFFFF',
+                      fontSize: '12px',
+                      fontFamily: 'IBM Plex Mono',
+                    }}
+                    formatter={(val: any) => [`${val}% Cumulative Yield`, 'ROI']}
+                    labelFormatter={(label) => `Year ${label}`}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="value"
+                    stroke="#B98A45"
+                    strokeWidth={2.5}
+                    dot={{ r: 4, fill: '#FFE8B8', stroke: '#15171C', strokeWidth: 1.5 }}
+                    activeDot={{ r: 6, fill: '#FFFFFF' }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <p className="text-[11px] font-mono text-zinc-400 text-center mt-3">
+              Combines heating utility reduction, tenant rent adjustment (§559 BGB), and KfW debt relief.
+            </p>
+          </div>
+
+          {/* CO2 Savings & Decarbonization Roadmap */}
+          <div className="bg-[#1A1C22] p-6 rounded-[8px] border border-[#322A1F]">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-display font-semibold text-white">
+                Carbon Abatement & ESG
+              </h3>
+              <span className="text-xs font-mono text-emerald-400">DIN V 18599</span>
+            </div>
+
+            <div className="space-y-4">
+              {plan.co2Savings.map((item, idx) => (
+                <div key={idx} className="space-y-1.5">
+                  <div className="flex justify-between items-baseline text-xs">
+                    <span className="font-medium text-white truncate max-w-[200px]">{item.category}</span>
+                    <span className="font-mono text-primary font-semibold">{item.savingTons} t CO₂/yr</span>
+                  </div>
+                  <div className="w-full bg-[#15171C] rounded-full h-2 overflow-hidden border border-[#2B2E37]">
+                    <div
+                      className="h-full rounded-full transition-all duration-1000 ease-out bg-primary"
+                      style={{
+                        width: animateCharts ? `${Math.min((item.savingTons / 25) * 100, 100)}%` : '0%',
+                      }}
+                    />
+                  </div>
+                  {item.description && (
+                    <p className="text-[11px] font-serif-editorial text-zinc-400 leading-relaxed">
+                      {item.description}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 p-3 rounded-[6px] bg-[#16181D] border border-[#2D3039] flex items-center justify-between text-xs font-mono">
+              <span className="text-zinc-400">Total Abatement:</span>
+              <span className="text-[#FFE8B8] font-bold">
+                {plan.co2Savings.reduce((acc, c) => acc + c.savingTons, 0)} Tons CO₂ annually
+              </span>
+            </div>
+          </div>
+
+          {/* German Funding Programs Breakdown */}
+          <div className="bg-[#1A1C22] p-6 rounded-[8px] border border-[#322A1F]">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-display font-semibold text-white">
+                German Subsidies & Grants
+              </h3>
+              <span className="text-xs font-mono text-primary">KfW · BAFA · IBB</span>
+            </div>
+
+            <div className="space-y-3">
+              {plan.funding.map((fund, idx) => (
+                <div key={idx} className="p-3.5 rounded-[6px] bg-[#15171C] border border-[#2A2D35] hover:border-[#3E3426] transition-colors">
+                  <div className="flex justify-between items-start gap-2 mb-1.5">
+                    <span className="text-xs font-display font-semibold text-white">{fund.name}</span>
+                    <span className="text-xs font-mono text-primary font-medium bg-[#24201A] border border-[#3E3426] px-2 py-0.5 rounded whitespace-nowrap">
+                      {fund.amount}
+                    </span>
+                  </div>
+                  <p className="text-[11px] font-serif-editorial text-zinc-400 leading-relaxed">
+                    {fund.description}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 pt-4 border-t border-[#322A1F]">
+              <button
+                type="button"
+                onClick={onReset}
+                className="w-full py-2.5 rounded-[6px] bg-[#1E2027] border border-[#322A1F] hover:border-primary text-xs font-mono text-zinc-300 hover:text-white transition-colors"
+              >
+                <i className="fas fa-rotate-left mr-1.5 text-xs text-primary"></i>
+                Re-calculate with different parameters
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
     </div>
   );
 };
